@@ -3,12 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>林業プロット測定儀 v2</title>
+    <title>AR釣竿</title>
     <style>
         body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; }
         video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
+        /* タイトル表示 */
+        #app-title {
+            position: absolute; top: 10px; left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px; font-weight: bold; color: rgba(255,255,255,0.7);
+            background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 10px;
+            pointer-events: none;
+        }
+
         /* 十字線 */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
@@ -24,51 +33,61 @@
             transform: translate(-50%, -50%); border-radius: 50%;
         }
 
-        /* 判定結果 */
+        /* 判定結果 (IN/OUT) */
         #judgement {
             position: absolute; top: 30%; left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 4rem; font-weight: 900;
+            font-size: 5rem; font-weight: 900;
             text-shadow: 0px 0px 10px rgba(0,0,0,0.8);
             display: none;
         }
         .status-in { color: #00ff00; }
         .status-out { color: #ff0000; }
 
-        /* 左上：デバッグ情報 */
+        /* 情報ボックス (左下) */
         #info-box {
-            position: absolute; top: 10px; left: 10px;
-            font-size: 14px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px;
-            text-shadow: 1px 1px 1px #000;
+            position: absolute; bottom: 180px; left: 10px;
+            font-size: 14px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 5px;
+            text-shadow: 1px 1px 1px #000; pointer-events: none;
         }
         .val { font-weight: bold; color: #ffeb3b; }
+        .label { font-size: 11px; color: #ccc; }
 
-        /* 右上：カウンター */
+        /* カウンター (右上) */
         #counter-box {
             position: absolute; top: 10px; right: 10px;
             background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;
-            text-align: center; pointer-events: auto; min-width: 60px;
+            text-align: center; pointer-events: auto; min-width: 70px;
         }
-        #count-val { font-size: 32px; font-weight: bold; color: #00ff00; }
-        #btn-count { background: #28a745; color: white; width: 100%; margin-top: 5px; padding: 10px; font-weight: bold; border-radius: 5px; border: none;}
+        #count-val { font-size: 36px; font-weight: bold; color: #00ff00; }
+        #btn-count { background: #28a745; color: white; width: 100%; margin-top: 5px; padding: 12px; font-weight: bold; border-radius: 5px; border: none; font-size: 18px;}
         
-        /* 下部設定パネル */
+        /* 設定パネル (下部) */
         #controls {
             position: absolute; bottom: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.85); padding: 20px;
+            background: rgba(0,0,0,0.9); padding: 20px;
             pointer-events: auto;
             border-top-left-radius: 20px; border-top-right-radius: 20px;
+            display: flex; flex-direction: column; gap: 10px;
         }
-        .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        input[type="number"] { width: 70px; padding: 8px; font-size: 18px; border-radius: 5px; border: none; text-align: right; }
+        .row { display: flex; justify-content: space-between; align-items: center; }
+        select { width: 100px; padding: 8px; font-size: 16px; border-radius: 5px; border: none; background: #fff; color: #000; text-align: right; }
         button { padding: 12px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; }
+        
         .btn-set { background: #ff9800; color: black; font-weight: bold; width: 100%; }
-        .btn-start { background: #007bff; color: white; width: 100%; font-weight: bold; }
+        .btn-start { background: #007bff; color: white; width: 100%; font-weight: bold; margin-top: 10px;}
+        
+        /* チェックボックス行 */
+        .check-row { justify-content: flex-end; font-size: 12px; color: #ccc; margin-top: 5px;}
+        input[type="checkbox"] { transform: scale(1.5); margin-right: 5px; }
+
     </style>
 </head>
 <body>
 
     <video id="video" autoplay playsinline muted></video>
+
+    <div id="app-title">AR釣竿 v0.1</div>
 
     <div id="ui-layer">
         <div id="crosshair"></div>
@@ -76,114 +95,159 @@
     </div>
 
     <div id="info-box">
-        視準傾斜角: <span id="disp-angle" class="val">0.0</span>°<br>
-        地面勾配: <span id="disp-slope" class="val">0.0</span>°<br>
-        斜距離(半径): <span id="disp-radius" class="val">5.6</span>m<br>
-        (水平半径: 5.6m)
+        <span class="label">現在の地面勾配</span><br>
+        <span id="disp-slope" class="val">0.0</span>° <span id="disp-slope-dir"></span><br>
+        <span class="label">補正後半径(斜距離)</span><br>
+        <span id="disp-radius" class="val">5.60</span>m
     </div>
 
     <div id="counter-box">
         <div style="font-size:12px;">本数</div>
         <div id="count-val">0</div>
         <button id="btn-count" onclick="incrementCount()">＋</button>
-        <button onclick="resetCount()" style="font-size:12px; background:#555; color:#ccc; margin-top:8px; padding:5px; width:100%; border:none; border-radius:4px;">クリア</button>
+        <button onclick="resetCount()" style="font-size:11px; background:#555; color:#ccc; margin-top:8px; padding:5px; width:100%; border:none; border-radius:4px;">クリア</button>
     </div>
 
     <div id="controls">
+        <div style="text-align:center; font-weight:bold; margin-bottom:5px; color:#007bff;">設定</div>
+        
         <div class="row">
-            <label>1. 目の高さ (cm)</label>
-            <input type="number" id="eyeHeight" value="160">
+            <label>1. 目の高さ(cm)</label>
+            <select id="eyeHeight">
+                </select>
         </div>
         <div class="row">
-            <label>2. 山の傾斜 (度)</label>
-            <input type="number" id="slopeAngle" value="0">
+            <label>2. 山の傾斜(度)</label>
+            <select id="slopeAngle">
+                </select>
         </div>
+        
+        <div class="row check-row">
+            <label><input type="checkbox" id="reverseSlope">山谷判定を逆にする</label>
+        </div>
+
         <div class="row">
             <button class="btn-set" onclick="setSlopeDirection()">3. 現在の方位を「山側」にセット</button>
         </div>
-        <div style="text-align:center; color:#aaa; margin-bottom:10px; font-size:12px;">
-            セット済方位: <span id="set-azimuth">未設定</span>
+        
+        <div style="text-align:center; color:#aaa; font-size:12px;">
+            山側方位: <span id="set-azimuth">未設定</span>
         </div>
+        
         <button class="btn-start" onclick="requestPermissions()">測定スタート (iOS用)</button>
     </div>
 
 <script>
+    // --- 初期化：プルダウンの生成 ---
+    window.onload = function() {
+        // 目の高さ: 120-200cm, 5cm刻み, default 160
+        const eyeSel = document.getElementById('eyeHeight');
+        for(let h=120; h<=200; h+=5){
+            const opt = document.createElement('option');
+            opt.value = h;
+            opt.text = h + " cm";
+            if(h === 160) opt.selected = true;
+            eyeSel.appendChild(opt);
+        }
+
+        // 山の傾斜: 0-45度, 5度刻み, default 25
+        const slopeSel = document.getElementById('slopeAngle');
+        for(let s=0; s<=50; s+=5){
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.text = s + " 度";
+            if(s === 25) opt.selected = true;
+            slopeSel.appendChild(opt);
+        }
+    };
+
     // --- 定数 ---
     const PLOT_RADIUS_H = 5.6; // 水平半径 (m)
 
     // --- 変数 ---
     let eyeHeightM = 1.6;
-    let maxSlopeDeg = 0;
+    let maxSlopeDeg = 25;
     
     let slopeAzimuth = null; // 山側の方位 (0-360)
-    let currentAzimuth = 0;  // 現在向いている方位
-    let currentTilt = 0;     // 現在のスマホ傾斜角 (上+, 下-)
+    let currentAzimuth = 0;  
+    let currentTilt = 0;     // スマホ傾斜 (上+, 下-)
+    
+    let isReverseSlope = false; // 反転フラグ
 
     let count = 0;
 
-    // --- メイン処理 ---
+    // --- 計算ロジック ---
     function calculate() {
-        // 1. 実効勾配の計算 (Effective Slope)
-        // 山側との角度差から、現在見ている方向の勾配を割り出す
-        // cos(0)=1(最大勾配), cos(90)=0(水平), cos(180)=-1(下り最大)
+        // 設定値の更新
+        eyeHeightM = parseInt(document.getElementById('eyeHeight').value) / 100;
+        maxSlopeDeg = parseInt(document.getElementById('slopeAngle').value);
+        isReverseSlope = document.getElementById('reverseSlope').checked;
+
+        // 1. 実効勾配の計算
         let effectiveSlopeDeg = 0;
         
         if (slopeAzimuth !== null) {
             let diff = currentAzimuth - slopeAzimuth;
-            // 方位差をラジアンに
             let diffRad = diff * (Math.PI / 180);
-            effectiveSlopeDeg = maxSlopeDeg * Math.cos(diffRad);
+            
+            // 通常: cos(0)=1 (山側=正の傾斜)
+            let factor = Math.cos(diffRad);
+            
+            // 反転スイッチがONなら符号を逆転
+            if(isReverseSlope) {
+                factor = -factor;
+            }
+
+            effectiveSlopeDeg = maxSlopeDeg * factor;
         }
 
-        // 2. 境界角度 (Threshold Angle) の計算
-        // 木の根元が水平距離5.6mにあるとき、目線から見て何度に見えるか？
-        // 公式: Y = R * tan(α) - h
-        //      TargetAngle = atan(Y / R)
-        // α: 地面勾配, R: 水平距離, h: 目の高さ
-        
+        // 2. 境界角度の計算
         const effSlopeRad = effectiveSlopeDeg * (Math.PI / 180);
         
-        // 5.6m先での地面の高さ変化 (目線高さ基準ではなく、足元基準の高さ)
+        // 地面の高低差 (山側なら +, 谷側なら -)
         const groundRise = PLOT_RADIUS_H * Math.tan(effSlopeRad);
         
-        // 目線から見た垂直相対距離 (上がプラス)
-        // 山側(Rise>0)なら、目との高低差は縮まる(または追い越す)
-        // 谷側(Rise<0)なら、目との高低差は広がる(より下になる)
+        // 目線から見た相対高
         const targetY = groundRise - eyeHeightM;
         
-        // その点を見るための角度
+        // 境界角度
         const limitRad = Math.atan(targetY / PLOT_RADIUS_H);
         const limitDeg = limitRad * (180 / Math.PI);
 
-        // 3. 斜距離（補正後半径）の計算
-        // 実際に巻き尺で測るべき距離 (Slope Distance)
-        // 足元からターゲットまでの直線距離
-        // SD = sqrt( R^2 + Rise^2 )
+        // 3. 斜距離 (表示用)
         const slopeDistance = Math.sqrt(Math.pow(PLOT_RADIUS_H, 2) + Math.pow(groundRise, 2));
 
+        // --- 画面表示更新 ---
+        const dispSlope = document.getElementById('disp-slope');
+        const dispDir = document.getElementById('disp-slope-dir');
+        
+        dispSlope.innerText = Math.abs(effectiveSlopeDeg).toFixed(1);
+        if(effectiveSlopeDeg > 0.1) {
+            dispSlope.style.color = "#ffeb3b"; // 黄
+            dispDir.innerText = "(上り)";
+        } else if (effectiveSlopeDeg < -0.1) {
+            dispSlope.style.color = "#00ffff"; // 水色
+            dispDir.innerText = "(下り)";
+        } else {
+            dispSlope.style.color = "#fff";
+            dispDir.innerText = "(平坦)";
+        }
 
-        // --- 表示更新 ---
-        document.getElementById('disp-angle').innerText = currentTilt.toFixed(1);
-        document.getElementById('disp-slope').innerText = effectiveSlopeDeg.toFixed(1);
         document.getElementById('disp-radius').innerText = slopeDistance.toFixed(2);
 
-        // --- 判定ロジック ---
-        // 重要な法則: 
-        // 「地面を見ている」限り、角度が「下（マイナス）」に行けば行くほど「手前（近い）」である。
-        // 角度が「上（プラス）」に行けば行くほど「遠い」。
-        // つまり、 [現在の角度] < [境界角度] ならば、手前を見ている = IN
+        // --- 判定 (IN/OUT) ---
+        // 視線角度(currentTilt)が、境界角度(limitDeg)より「下(小さい)」ならIN
+        // ※ currentTiltは 上+, 下-
         
         const judgeElem = document.getElementById('judgement');
         const crosshair = document.getElementById('crosshair');
 
         if (currentTilt < limitDeg) {
-            // IN
             judgeElem.style.display = 'block';
             judgeElem.innerText = 'IN';
             judgeElem.className = 'status-in';
             crosshair.style.borderColor = '#00ff00';
         } else {
-            // OUT
             judgeElem.style.display = 'block';
             judgeElem.innerText = 'OUT';
             judgeElem.className = 'status-out';
@@ -192,91 +256,67 @@
     }
 
     // --- イベントハンドラ ---
-    
-    // センサー処理
     function handleOrientation(event) {
-        // 方位 (iOS/Android対応)
+        // 方位取得 (iOS/Android)
         if (event.webkitCompassHeading) {
             currentAzimuth = event.webkitCompassHeading;
         } else if (event.alpha) {
-             // Androidのalphaは北基準とは限らないが、相対差で計算するので今回はそのまま使う
-             // (本来はabsolute補正が必要だが、セットボタン方式なら相対でOK)
+            // Androidのalphaは端末ごとに挙動が違うことがあるが相対差分で使う
             currentAzimuth = event.alpha; 
         }
 
-        // 傾斜 (beta)
-        // Android/iOS共に、直立=90, 水平=0, 上向き=-90 のような値を取ることが多いが
-        // 端末によって符号が違うことがある。
-        // 一般的には: beta=90(直立)。画面を上に向けるとbetaは増えるか減るか？
-        // 標準仕様: 直立90。仰向け180。うつ伏せ0。
-        // なので、カメラを構えた状態(直立)から、
-        // 下を向く(画面が下向く) -> betaは90より小さくなる -> 減る
-        // 上を向く(画面が上向く) -> betaは90より大きくなる -> 増える
+        // 傾斜取得 (beta)
+        // beta: 直立90, 水平0, 上向き負になるケースと180になるケースがある
+        // ここでは「画面を垂直(90)から手前に倒すと減る」一般的な挙動を想定
+        // ユーザー要望: 上向き+, 下向き-
+        // currentTilt = beta - 90
         
-        // 高田さんの要望: 上向きプラス、下向きマイナス
-        // 変換式: Angle = beta - 90
-        // 例: 直立(90) -> 0度
-        // 例: 少し上(100) -> 10度
-        // 例: 少し下(80) -> -10度
-        
+        // 一部のAndroid対応: betaが逆転している場合などの補正は複雑だが
+        // とりあえず標準的な (beta - 90) で実装
         currentTilt = event.beta - 90;
 
-        // 計算実行
         calculate();
     }
 
-    // 山側セット
     function setSlopeDirection() {
         slopeAzimuth = currentAzimuth;
-        updateSettings();
         document.getElementById('set-azimuth').innerText = Math.round(slopeAzimuth) + "°";
-        alert("現在の方位を「山側（最大傾斜）」として記憶しました。\n周囲を見渡して判定してください。");
+        // アラートは邪魔になるかもしれないので削除、視覚的に確認してもらう
     }
 
-    // 設定更新
-    function updateSettings() {
-        eyeHeightM = parseFloat(document.getElementById('eyeHeight').value) / 100;
-        maxSlopeDeg = parseFloat(document.getElementById('slopeAngle').value);
-    }
-
-    // カメラ起動
     async function startCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             document.getElementById('video').srcObject = stream;
         } catch (err) {
-            alert("カメラエラー: " + err);
+            console.error(err);
         }
     }
 
-    // 許可要求 (iOS)
     function requestPermissions() {
-        updateSettings();
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
-                .then(permissionState => {
-                    if (permissionState === 'granted') {
+                .then(state => {
+                    if (state === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
-                        document.getElementById('controls').style.display = 'none'; // パネルを隠す
+                        // 設定パネルを隠す処理は削除（常に微調整できるように）
+                        // 邪魔ならトグルボタンをつけても良い
                     } else {
                         alert("センサー許可が必要です");
                     }
-                })
-                .catch(console.error);
+                });
         } else {
             window.addEventListener('deviceorientation', handleOrientation);
-            document.getElementById('controls').style.display = 'none';
         }
         startCamera();
     }
 
-    // カウンター
     function incrementCount() {
         count++;
         document.getElementById('count-val').innerText = count;
     }
     function resetCount() {
-        if(confirm("カウントをリセットしますか？")) {
+        if(confirm("リセットしますか？")) {
             count = 0;
             document.getElementById('count-val').innerText = count;
         }
