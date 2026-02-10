@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR釣竿</title>
+    <title>AR釣竿 v1.0</title>
     <style>
         body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; }
         video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
         
-        /* タイトル表示 */
+        /* アプリ名 */
         #app-title {
-            position: absolute; top: 10px; left: 50%;
-            transform: translateX(-50%);
-            font-size: 16px; font-weight: bold; color: rgba(255,255,255,0.7);
-            background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 10px;
+            position: absolute; top: 15px; left: 15px;
+            font-size: 16px; font-weight: bold; color: rgba(255,255,255,0.8);
+            background: rgba(0,0,0,0.4); padding: 5px 10px; border-radius: 15px;
             pointer-events: none;
+            z-index: 10;
         }
 
         /* 十字線 */
@@ -26,6 +25,7 @@
             border: 2px solid rgba(255, 255, 255, 0.5);
             border-radius: 50%;
             transition: border-color 0.2s;
+            z-index: 5;
         }
         #crosshair::after {
             content: ''; position: absolute; top: 50%; left: 50%;
@@ -40,45 +40,73 @@
             font-size: 5rem; font-weight: 900;
             text-shadow: 0px 0px 10px rgba(0,0,0,0.8);
             display: none;
+            z-index: 5;
         }
         .status-in { color: #00ff00; }
         .status-out { color: #ff0000; }
 
-        /* 情報ボックス (左下) */
+        /* 左下：情報ボックス（位置を少し上げました） */
         #info-box {
-            position: absolute; bottom: 180px; left: 10px;
-            font-size: 14px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 5px;
+            position: absolute; bottom: 80px; left: 10px;
+            font-size: 14px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px;
             text-shadow: 1px 1px 1px #000; pointer-events: none;
+            z-index: 5;
+            transition: bottom 0.3s ease; /* パネル開閉に合わせて動く */
         }
         .val { font-weight: bold; color: #ffeb3b; }
         .label { font-size: 11px; color: #ccc; }
 
-        /* カウンター (右上) */
+        /* 右上：カウンター */
         #counter-box {
-            position: absolute; top: 10px; right: 10px;
+            position: absolute; top: 15px; right: 15px;
             background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;
             text-align: center; pointer-events: auto; min-width: 70px;
+            z-index: 20; /* 最前面 */
         }
         #count-val { font-size: 36px; font-weight: bold; color: #00ff00; }
         #btn-count { background: #28a745; color: white; width: 100%; margin-top: 5px; padding: 12px; font-weight: bold; border-radius: 5px; border: none; font-size: 18px;}
         
-        /* 設定パネル (下部) */
+        /* 設定パネル (開閉式) */
         #controls {
             position: absolute; bottom: 0; left: 0; right: 0;
-            background: rgba(0,0,0,0.9); padding: 20px;
-            pointer-events: auto;
+            background: rgba(0,0,0,0.9);
             border-top-left-radius: 20px; border-top-right-radius: 20px;
-            display: flex; flex-direction: column; gap: 10px;
+            display: flex; flex-direction: column;
+            z-index: 30;
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform: translateY(0); /* 開いた状態 */
         }
+        
+        /* 閉じた状態のクラス */
+        #controls.collapsed {
+            transform: translateY(calc(100% - 50px)); /* ヘッダー分(50px)だけ残して隠す */
+        }
+
+        /* パネルヘッダー（タップエリア） */
+        #ctrl-header {
+            height: 50px;
+            display: flex; justify-content: center; align-items: center;
+            background: rgba(255,255,255,0.1);
+            border-top-left-radius: 20px; border-top-right-radius: 20px;
+            cursor: pointer;
+            color: #007bff; font-weight: bold;
+        }
+        #toggle-icon { margin-left: 10px; font-size: 12px; }
+
+        /* パネルの中身 */
+        #ctrl-content {
+            padding: 20px;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+
         .row { display: flex; justify-content: space-between; align-items: center; }
         select { width: 100px; padding: 8px; font-size: 16px; border-radius: 5px; border: none; background: #fff; color: #000; text-align: right; }
         button { padding: 12px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; }
         
         .btn-set { background: #ff9800; color: black; font-weight: bold; width: 100%; }
-        .btn-start { background: #007bff; color: white; width: 100%; font-weight: bold; margin-top: 10px;}
+        .btn-start { background: #007bff; color: white; width: 100%; font-weight: bold; }
         
-        /* チェックボックス行 */
-        .check-row { justify-content: flex-end; font-size: 12px; color: #ccc; margin-top: 5px;}
+        .check-row { justify-content: flex-end; font-size: 12px; color: #ccc; margin-top: -5px;}
         input[type="checkbox"] { transform: scale(1.5); margin-right: 5px; }
 
     </style>
@@ -87,7 +115,7 @@
 
     <video id="video" autoplay playsinline muted></video>
 
-    <div id="app-title">AR釣竿 v0.1</div>
+    <div id="app-title">AR釣竿 v1.0</div>
 
     <div id="ui-layer">
         <div id="crosshair"></div>
@@ -109,38 +137,42 @@
     </div>
 
     <div id="controls">
-        <div style="text-align:center; font-weight:bold; margin-bottom:5px; color:#007bff;">設定</div>
-        
-        <div class="row">
-            <label>1. 目の高さ(cm)</label>
-            <select id="eyeHeight">
-                </select>
-        </div>
-        <div class="row">
-            <label>2. 山の傾斜(度)</label>
-            <select id="slopeAngle">
-                </select>
-        </div>
-        
-        <div class="row check-row">
-            <label><input type="checkbox" id="reverseSlope">山谷判定を逆にする</label>
+        <div id="ctrl-header" onclick="toggleControls()">
+            設定 <span id="toggle-icon">▼</span>
         </div>
 
-        <div class="row">
-            <button class="btn-set" onclick="setSlopeDirection()">3. 現在の方位を「山側」にセット</button>
+        <div id="ctrl-content">
+            <div class="row">
+                <label>1. 目の高さ(cm)</label>
+                <select id="eyeHeight">
+                    </select>
+            </div>
+            <div class="row">
+                <label>2. 山の傾斜(度)</label>
+                <select id="slopeAngle">
+                    </select>
+            </div>
+            
+            <div class="row check-row">
+                <label><input type="checkbox" id="reverseSlope">山谷判定を逆にする</label>
+            </div>
+    
+            <div class="row">
+                <button class="btn-set" onclick="setSlopeDirection()">3. 現在の方位を「山側」にセット</button>
+            </div>
+            
+            <div style="text-align:center; color:#aaa; font-size:12px;">
+                山側方位: <span id="set-azimuth">未設定</span>
+            </div>
+            
+            <button class="btn-start" onclick="requestPermissions()">測定スタート (iOS用)</button>
         </div>
-        
-        <div style="text-align:center; color:#aaa; font-size:12px;">
-            山側方位: <span id="set-azimuth">未設定</span>
-        </div>
-        
-        <button class="btn-start" onclick="requestPermissions()">測定スタート (iOS用)</button>
     </div>
 
 <script>
-    // --- 初期化：プルダウンの生成 ---
+    // --- 初期化 ---
     window.onload = function() {
-        // 目の高さ: 120-200cm, 5cm刻み, default 160
+        // 目の高さ: 120-200cm
         const eyeSel = document.getElementById('eyeHeight');
         for(let h=120; h<=200; h+=5){
             const opt = document.createElement('option');
@@ -150,7 +182,7 @@
             eyeSel.appendChild(opt);
         }
 
-        // 山の傾斜: 0-45度, 5度刻み, default 25
+        // 山の傾斜: 0-45度
         const slopeSel = document.getElementById('slopeAngle');
         for(let s=0; s<=50; s+=5){
             const opt = document.createElement('option');
@@ -161,72 +193,70 @@
         }
     };
 
-    // --- 定数 ---
-    const PLOT_RADIUS_H = 5.6; // 水平半径 (m)
+    // --- UI操作 ---
+    function toggleControls() {
+        const panel = document.getElementById('controls');
+        const icon = document.getElementById('toggle-icon');
+        const infoBox = document.getElementById('info-box');
 
-    // --- 変数 ---
+        panel.classList.toggle('collapsed');
+
+        if(panel.classList.contains('collapsed')) {
+            icon.innerText = "▲";
+            // パネルが閉じた時、情報ボックスを下げる（邪魔にならないように）
+            infoBox.style.bottom = "60px"; 
+        } else {
+            icon.innerText = "▼";
+            // パネルが開いた時、情報ボックスを上げる（隠れないように）
+            infoBox.style.bottom = "350px"; // おおよその高さ
+        }
+    }
+
+    // --- 定数・変数 ---
+    const PLOT_RADIUS_H = 5.6; 
     let eyeHeightM = 1.6;
     let maxSlopeDeg = 25;
-    
-    let slopeAzimuth = null; // 山側の方位 (0-360)
+    let slopeAzimuth = null;
     let currentAzimuth = 0;  
-    let currentTilt = 0;     // スマホ傾斜 (上+, 下-)
-    
-    let isReverseSlope = false; // 反転フラグ
-
+    let currentTilt = 0;     
+    let isReverseSlope = false;
     let count = 0;
 
     // --- 計算ロジック ---
     function calculate() {
-        // 設定値の更新
         eyeHeightM = parseInt(document.getElementById('eyeHeight').value) / 100;
         maxSlopeDeg = parseInt(document.getElementById('slopeAngle').value);
         isReverseSlope = document.getElementById('reverseSlope').checked;
 
-        // 1. 実効勾配の計算
         let effectiveSlopeDeg = 0;
         
         if (slopeAzimuth !== null) {
             let diff = currentAzimuth - slopeAzimuth;
             let diffRad = diff * (Math.PI / 180);
-            
-            // 通常: cos(0)=1 (山側=正の傾斜)
             let factor = Math.cos(diffRad);
             
-            // 反転スイッチがONなら符号を逆転
-            if(isReverseSlope) {
-                factor = -factor;
-            }
-
+            if(isReverseSlope) factor = -factor;
             effectiveSlopeDeg = maxSlopeDeg * factor;
         }
 
-        // 2. 境界角度の計算
         const effSlopeRad = effectiveSlopeDeg * (Math.PI / 180);
-        
-        // 地面の高低差 (山側なら +, 谷側なら -)
         const groundRise = PLOT_RADIUS_H * Math.tan(effSlopeRad);
-        
-        // 目線から見た相対高
         const targetY = groundRise - eyeHeightM;
-        
-        // 境界角度
         const limitRad = Math.atan(targetY / PLOT_RADIUS_H);
         const limitDeg = limitRad * (180 / Math.PI);
 
-        // 3. 斜距離 (表示用)
         const slopeDistance = Math.sqrt(Math.pow(PLOT_RADIUS_H, 2) + Math.pow(groundRise, 2));
 
-        // --- 画面表示更新 ---
+        // 表示更新
         const dispSlope = document.getElementById('disp-slope');
         const dispDir = document.getElementById('disp-slope-dir');
         
         dispSlope.innerText = Math.abs(effectiveSlopeDeg).toFixed(1);
         if(effectiveSlopeDeg > 0.1) {
-            dispSlope.style.color = "#ffeb3b"; // 黄
+            dispSlope.style.color = "#ffeb3b"; 
             dispDir.innerText = "(上り)";
         } else if (effectiveSlopeDeg < -0.1) {
-            dispSlope.style.color = "#00ffff"; // 水色
+            dispSlope.style.color = "#00ffff"; 
             dispDir.innerText = "(下り)";
         } else {
             dispSlope.style.color = "#fff";
@@ -235,10 +265,7 @@
 
         document.getElementById('disp-radius').innerText = slopeDistance.toFixed(2);
 
-        // --- 判定 (IN/OUT) ---
-        // 視線角度(currentTilt)が、境界角度(limitDeg)より「下(小さい)」ならIN
-        // ※ currentTiltは 上+, 下-
-        
+        // 判定
         const judgeElem = document.getElementById('judgement');
         const crosshair = document.getElementById('crosshair');
 
@@ -255,33 +282,20 @@
         }
     }
 
-    // --- イベントハンドラ ---
+    // --- センサー処理 ---
     function handleOrientation(event) {
-        // 方位取得 (iOS/Android)
         if (event.webkitCompassHeading) {
             currentAzimuth = event.webkitCompassHeading;
         } else if (event.alpha) {
-            // Androidのalphaは端末ごとに挙動が違うことがあるが相対差分で使う
             currentAzimuth = event.alpha; 
         }
-
-        // 傾斜取得 (beta)
-        // beta: 直立90, 水平0, 上向き負になるケースと180になるケースがある
-        // ここでは「画面を垂直(90)から手前に倒すと減る」一般的な挙動を想定
-        // ユーザー要望: 上向き+, 下向き-
-        // currentTilt = beta - 90
-        
-        // 一部のAndroid対応: betaが逆転している場合などの補正は複雑だが
-        // とりあえず標準的な (beta - 90) で実装
         currentTilt = event.beta - 90;
-
         calculate();
     }
 
     function setSlopeDirection() {
         slopeAzimuth = currentAzimuth;
         document.getElementById('set-azimuth').innerText = Math.round(slopeAzimuth) + "°";
-        // アラートは邪魔になるかもしれないので削除、視覚的に確認してもらう
     }
 
     async function startCamera() {
@@ -294,13 +308,14 @@
     }
 
     function requestPermissions() {
+        // スタート時にパネルを閉じる動きを入れる
+        toggleControls(); 
+
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(state => {
                     if (state === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
-                        // 設定パネルを隠す処理は削除（常に微調整できるように）
-                        // 邪魔ならトグルボタンをつけても良い
                     } else {
                         alert("センサー許可が必要です");
                     }
