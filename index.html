@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR釣竿 v1.0</title>
+    <title>AR釣竿 v1.1</title>
     <style>
         body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; }
         video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
@@ -45,13 +45,13 @@
         .status-in { color: #00ff00; }
         .status-out { color: #ff0000; }
 
-        /* 左下：情報ボックス（位置を少し上げました） */
+        /* 左下：情報ボックス */
         #info-box {
             position: absolute; bottom: 80px; left: 10px;
             font-size: 14px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px;
             text-shadow: 1px 1px 1px #000; pointer-events: none;
             z-index: 5;
-            transition: bottom 0.3s ease; /* パネル開閉に合わせて動く */
+            transition: bottom 0.3s ease;
         }
         .val { font-weight: bold; color: #ffeb3b; }
         .label { font-size: 11px; color: #ccc; }
@@ -61,7 +61,7 @@
             position: absolute; top: 15px; right: 15px;
             background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px;
             text-align: center; pointer-events: auto; min-width: 70px;
-            z-index: 20; /* 最前面 */
+            z-index: 20;
         }
         #count-val { font-size: 36px; font-weight: bold; color: #00ff00; }
         #btn-count { background: #28a745; color: white; width: 100%; margin-top: 5px; padding: 12px; font-weight: bold; border-radius: 5px; border: none; font-size: 18px;}
@@ -74,15 +74,13 @@
             display: flex; flex-direction: column;
             z-index: 30;
             transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            transform: translateY(0); /* 開いた状態 */
+            transform: translateY(0);
         }
         
-        /* 閉じた状態のクラス */
         #controls.collapsed {
-            transform: translateY(calc(100% - 50px)); /* ヘッダー分(50px)だけ残して隠す */
+            transform: translateY(calc(100% - 50px)); 
         }
 
-        /* パネルヘッダー（タップエリア） */
         #ctrl-header {
             height: 50px;
             display: flex; justify-content: center; align-items: center;
@@ -93,16 +91,22 @@
         }
         #toggle-icon { margin-left: 10px; font-size: 12px; }
 
-        /* パネルの中身 */
         #ctrl-content {
             padding: 20px;
             display: flex; flex-direction: column; gap: 15px;
+            padding-bottom: 40px; /* 下部に余裕を持たせる */
         }
 
         .row { display: flex; justify-content: space-between; align-items: center; }
-        select { width: 100px; padding: 8px; font-size: 16px; border-radius: 5px; border: none; background: #fff; color: #000; text-align: right; }
-        button { padding: 12px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; }
         
+        /* 入力フォーム共通スタイル */
+        select, input[type="number"] { 
+            width: 100px; padding: 8px; font-size: 16px; 
+            border-radius: 5px; border: none; background: #fff; color: #000; 
+            text-align: right; 
+        }
+
+        button { padding: 12px; font-size: 16px; border-radius: 8px; border: none; cursor: pointer; }
         .btn-set { background: #ff9800; color: black; font-weight: bold; width: 100%; }
         .btn-start { background: #007bff; color: white; width: 100%; font-weight: bold; }
         
@@ -115,7 +119,7 @@
 
     <video id="video" autoplay playsinline muted></video>
 
-    <div id="app-title">AR釣竿 v1.0</div>
+    <div id="app-title">AR釣竿 v1.1</div>
 
     <div id="ui-layer">
         <div id="crosshair"></div>
@@ -126,7 +130,8 @@
         <span class="label">現在の地面勾配</span><br>
         <span id="disp-slope" class="val">0.0</span>° <span id="disp-slope-dir"></span><br>
         <span class="label">補正後半径(斜距離)</span><br>
-        <span id="disp-radius" class="val">5.60</span>m
+        <span id="disp-radius" class="val">5.60</span>m<br>
+        <span class="label" style="font-size:10px;">(設定水平半径: <span id="disp-base-radius">5.6</span>m)</span>
     </div>
 
     <div id="counter-box">
@@ -142,6 +147,11 @@
         </div>
 
         <div id="ctrl-content">
+            <div class="row">
+                <label>釣竿の長さ(m)</label>
+                <input type="number" id="plotRadiusInput" value="5.6" step="0.01">
+            </div>
+
             <div class="row">
                 <label>1. 目の高さ(cm)</label>
                 <select id="eyeHeight">
@@ -172,7 +182,7 @@
 <script>
     // --- 初期化 ---
     window.onload = function() {
-        // 目の高さ: 120-200cm
+        // 目の高さ
         const eyeSel = document.getElementById('eyeHeight');
         for(let h=120; h<=200; h+=5){
             const opt = document.createElement('option');
@@ -182,7 +192,7 @@
             eyeSel.appendChild(opt);
         }
 
-        // 山の傾斜: 0-45度
+        // 山の傾斜
         const slopeSel = document.getElementById('slopeAngle');
         for(let s=0; s<=50; s+=5){
             const opt = document.createElement('option');
@@ -203,17 +213,15 @@
 
         if(panel.classList.contains('collapsed')) {
             icon.innerText = "▲";
-            // パネルが閉じた時、情報ボックスを下げる（邪魔にならないように）
             infoBox.style.bottom = "60px"; 
         } else {
             icon.innerText = "▼";
-            // パネルが開いた時、情報ボックスを上げる（隠れないように）
-            infoBox.style.bottom = "350px"; // おおよその高さ
+            infoBox.style.bottom = "420px"; // パネルが大きくなったので調整
         }
     }
 
-    // --- 定数・変数 ---
-    const PLOT_RADIUS_H = 5.6; 
+    // --- 変数 ---
+    let currentPlotRadiusH = 5.6; // 可変半径
     let eyeHeightM = 1.6;
     let maxSlopeDeg = 25;
     let slopeAzimuth = null;
@@ -224,9 +232,14 @@
 
     // --- 計算ロジック ---
     function calculate() {
+        // 入力値の取得
+        currentPlotRadiusH = parseFloat(document.getElementById('plotRadiusInput').value);
         eyeHeightM = parseInt(document.getElementById('eyeHeight').value) / 100;
         maxSlopeDeg = parseInt(document.getElementById('slopeAngle').value);
         isReverseSlope = document.getElementById('reverseSlope').checked;
+        
+        // ゼロ割防止などの安全策
+        if(!currentPlotRadiusH || currentPlotRadiusH <= 0) currentPlotRadiusH = 5.6;
 
         let effectiveSlopeDeg = 0;
         
@@ -240,12 +253,14 @@
         }
 
         const effSlopeRad = effectiveSlopeDeg * (Math.PI / 180);
-        const groundRise = PLOT_RADIUS_H * Math.tan(effSlopeRad);
+        
+        // 任意の半径を使って計算
+        const groundRise = currentPlotRadiusH * Math.tan(effSlopeRad);
         const targetY = groundRise - eyeHeightM;
-        const limitRad = Math.atan(targetY / PLOT_RADIUS_H);
+        const limitRad = Math.atan(targetY / currentPlotRadiusH);
         const limitDeg = limitRad * (180 / Math.PI);
 
-        const slopeDistance = Math.sqrt(Math.pow(PLOT_RADIUS_H, 2) + Math.pow(groundRise, 2));
+        const slopeDistance = Math.sqrt(Math.pow(currentPlotRadiusH, 2) + Math.pow(groundRise, 2));
 
         // 表示更新
         const dispSlope = document.getElementById('disp-slope');
@@ -264,6 +279,7 @@
         }
 
         document.getElementById('disp-radius').innerText = slopeDistance.toFixed(2);
+        document.getElementById('disp-base-radius').innerText = currentPlotRadiusH; // 設定値の確認表示
 
         // 判定
         const judgeElem = document.getElementById('judgement');
@@ -308,7 +324,6 @@
     }
 
     function requestPermissions() {
-        // スタート時にパネルを閉じる動きを入れる
         toggleControls(); 
 
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
