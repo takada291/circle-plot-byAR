@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR釣竿 v1.1</title>
+    <title>AR釣竿</title>
     <style>
         body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; }
         video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; }
@@ -94,7 +94,7 @@
         #ctrl-content {
             padding: 20px;
             display: flex; flex-direction: column; gap: 15px;
-            padding-bottom: 40px; /* 下部に余裕を持たせる */
+            padding-bottom: 40px; 
         }
 
         .row { display: flex; justify-content: space-between; align-items: center; }
@@ -112,6 +112,9 @@
         
         .check-row { justify-content: flex-end; font-size: 12px; color: #ccc; margin-top: -5px;}
         input[type="checkbox"] { transform: scale(1.5); margin-right: 5px; }
+        
+        /* 現在方位表示 */
+        #live-azimuth { font-size: 12px; color: #00ff00; margin-left: 10px; font-weight: bold; }
 
     </style>
 </head>
@@ -119,7 +122,7 @@
 
     <video id="video" autoplay playsinline muted></video>
 
-    <div id="app-title">AR釣竿 v1.1</div>
+    <div id="app-title">AR釣竿 v1.2</div>
 
     <div id="ui-layer">
         <div id="crosshair"></div>
@@ -147,18 +150,21 @@
         </div>
 
         <div id="ctrl-content">
+            <button class="btn-start" onclick="requestPermissions()">1. 測定スタート (センサーON)</button>
+             <div style="font-size: 10px; text-align: center; color: #aaa; margin-bottom: 10px;">※最初に押してください</div>
+
             <div class="row">
                 <label>釣竿の長さ(m)</label>
                 <input type="number" id="plotRadiusInput" value="5.6" step="0.01">
             </div>
 
             <div class="row">
-                <label>1. 目の高さ(cm)</label>
+                <label>目の高さ(cm)</label>
                 <select id="eyeHeight">
                     </select>
             </div>
             <div class="row">
-                <label>2. 山の傾斜(度)</label>
+                <label>山の傾斜(度)</label>
                 <select id="slopeAngle">
                     </select>
             </div>
@@ -168,14 +174,13 @@
             </div>
     
             <div class="row">
-                <button class="btn-set" onclick="setSlopeDirection()">3. 現在の方位を「山側」にセット</button>
+                <button class="btn-set" onclick="setSlopeDirection()">2. 現在の方位を「山側」にセット</button>
             </div>
             
             <div style="text-align:center; color:#aaa; font-size:12px;">
-                山側方位: <span id="set-azimuth">未設定</span>
+                現在の方位: <span id="live-azimuth">---</span> / セット済: <span id="set-azimuth">未設定</span>
             </div>
             
-            <button class="btn-start" onclick="requestPermissions()">測定スタート (iOS用)</button>
         </div>
     </div>
 
@@ -221,7 +226,7 @@
     }
 
     // --- 変数 ---
-    let currentPlotRadiusH = 5.6; // 可変半径
+    let currentPlotRadiusH = 5.6; 
     let eyeHeightM = 1.6;
     let maxSlopeDeg = 25;
     let slopeAzimuth = null;
@@ -229,6 +234,9 @@
     let currentTilt = 0;     
     let isReverseSlope = false;
     let count = 0;
+    
+    // 安全装置用フラグ
+    let isSensorActive = false;
 
     // --- 計算ロジック ---
     function calculate() {
@@ -238,7 +246,6 @@
         maxSlopeDeg = parseInt(document.getElementById('slopeAngle').value);
         isReverseSlope = document.getElementById('reverseSlope').checked;
         
-        // ゼロ割防止などの安全策
         if(!currentPlotRadiusH || currentPlotRadiusH <= 0) currentPlotRadiusH = 5.6;
 
         let effectiveSlopeDeg = 0;
@@ -253,8 +260,6 @@
         }
 
         const effSlopeRad = effectiveSlopeDeg * (Math.PI / 180);
-        
-        // 任意の半径を使って計算
         const groundRise = currentPlotRadiusH * Math.tan(effSlopeRad);
         const targetY = groundRise - eyeHeightM;
         const limitRad = Math.atan(targetY / currentPlotRadiusH);
@@ -279,7 +284,7 @@
         }
 
         document.getElementById('disp-radius').innerText = slopeDistance.toFixed(2);
-        document.getElementById('disp-base-radius').innerText = currentPlotRadiusH; // 設定値の確認表示
+        document.getElementById('disp-base-radius').innerText = currentPlotRadiusH;
 
         // 判定
         const judgeElem = document.getElementById('judgement');
@@ -300,18 +305,35 @@
 
     // --- センサー処理 ---
     function handleOrientation(event) {
+        // センサーが動いていることを記録
+        isSensorActive = true;
+
         if (event.webkitCompassHeading) {
             currentAzimuth = event.webkitCompassHeading;
         } else if (event.alpha) {
             currentAzimuth = event.alpha; 
         }
         currentTilt = event.beta - 90;
+        
+        // 設定パネル内に現在の方位を表示（動いているか確認用）
+        document.getElementById('live-azimuth').innerText = Math.round(currentAzimuth) + "°";
+
         calculate();
     }
 
+    // 方位セット時の安全装置
     function setSlopeDirection() {
+        if (!isSensorActive) {
+            alert("⚠️ センサーが動いていません。\n先に「1. 測定スタート」ボタンを押して、カメラと方位センサーを許可してください。");
+            return;
+        }
+
         slopeAzimuth = currentAzimuth;
         document.getElementById('set-azimuth').innerText = Math.round(slopeAzimuth) + "°";
+        alert("✅ 山側の方位をセットしました！\nパネルを閉じて測定してください。");
+        
+        // 自動で閉じる
+        toggleControls();
     }
 
     async function startCamera() {
@@ -324,19 +346,25 @@
     }
 
     function requestPermissions() {
-        toggleControls(); 
-
+        // スタートボタンを押したときは、パネルを閉じない（すぐセットしたい場合があるため）
+        // または、カメラが見たいので閉じても良いが、今回は「セット」へ誘導するため開いたままにするか、
+        // ユーザーにお任せします。一旦ここでは閉じないように変更します。
+        
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(state => {
                     if (state === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
+                        // スタートボタンの色を変えて「稼働中」感す
+                        document.querySelector('.btn-start').style.background = "#28a745";
+                        document.querySelector('.btn-start').innerText = "センサー稼働中";
                     } else {
                         alert("センサー許可が必要です");
                     }
                 });
         } else {
             window.addEventListener('deviceorientation', handleOrientation);
+            isSensorActive = true; 
         }
         startCamera();
     }
