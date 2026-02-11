@@ -163,15 +163,15 @@
 
         <div id="ctrl-content">
             <button class="btn-start" onclick="requestPermissions()">1. 測定スタート (センサーON)</button>
-             <div class="note-text">※ボタン押下時、カメラ起動処理のため数秒間画面が停止することがありますが、仕様ですのでそのままお待ちください。</div>
-
             <div class="manual-box">
                 <div class="manual-title">【使い方の手順】</div>
                 <ol class="manual-list">
                     <li>上の「測定スタート」を押し許可する</li>
                     <li>釣竿長、目の高さ、傾斜を入力</li>
                     <li>山側(尾根)を向いて「2.セット」を押す</li>
-                    <li>このパネルを閉じて測定！</li>
+                    <li>閉じたパネルを▲を押して開きます</li>
+                    <li>「センサー稼働中」を押す</li>
+                    <li>パネルを▼を押して閉じ測定開始！</li>
                 </ol>
             </div>
 
@@ -194,7 +194,7 @@
             </div>
             
             <div class="row check-row">
-                <label><input type="checkbox" id="reverseSlope" onchange="updateSettings()">山谷判定を逆にする</label>
+                <label><input type="checkbox" id="reverseSlope" onchange="updateSettings()">山・谷判定を逆にする</label>
             </div>
     
             <div class="row">
@@ -419,3 +419,4 @@
 </script>
 </body>
 </html>
+
